@@ -1,0 +1,16 @@
+{
+  "name": "wayland-cursor-tracker",
+  "version": "1.0.0",
+  "description": "Global cursor tracking on KDE 6 Wayland via KWin scripting + D-Bus",
+  "main": "cursor-dbus.js",
+  "scripts": {
+    "start": "node cursor-dbus.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "dbus-next": "^0.10.2"
+  },
+  "devDependencies": {
+    "electron": "^41.1.1"
+  }
+}
