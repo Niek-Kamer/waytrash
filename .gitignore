@@ -3,3 +3,6 @@ dist/
 package-lock.json
 .env
 .claude
+
+# PBI is a separate project with its own git history
+plasma-browser-integration/

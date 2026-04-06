@@ -1,16 +1,19 @@
 {
-  "name": "wayland-cursor-tracker",
-  "version": "1.0.0",
-  "description": "Global cursor tracking on KDE 6 Wayland via KWin scripting + D-Bus",
-  "main": "cursor-dbus.js",
+  "name": "kde-mcp-desktop",
+  "version": "0.1.0",
+  "description": "MCP server for KDE Plasma desktop control — browser content, window management, and input automation via DBus, KWin scripting, and AT-SPI",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node cursor-dbus.js"
+    "start": "node src/server.js",
+    "windows": "node src/cli/windows.js",
+    "content": "node src/cli/content.js",
+    "hitmap": "node src/cli/hitmap.js",
+    "cursor": "node src/cursor-tracker.js"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
-    "dbus-next": "^0.10.2"
-  },
-  "devDependencies": {
-    "electron": "^41.1.1"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dbus-next": "^0.10.2",
+    "ws": "^8.20.0"
   }
 }
