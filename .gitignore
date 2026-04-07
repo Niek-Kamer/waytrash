@@ -4,5 +4,11 @@ package-lock.json
 .env
 .claude
 
-# PBI is a separate project with its own git history
-plasma-browser-integration/
+
+# Scraping scripts and output data (not part of the MCP server)
+scripts/
+data/
+my-data/
+
+# Drafts
+reddit-post.md

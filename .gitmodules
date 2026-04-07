@@ -1,0 +1,4 @@
+[submodule "plasma-browser-integration"]
+	path = plasma-browser-integration
+	url = git@github.com:Niek-Kamer/plasma-browser-integration.git
+	branch = mcp-page-content

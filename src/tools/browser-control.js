@@ -173,6 +173,184 @@ function register(server) {
   );
 
   server.registerTool(
+    "browser_extract",
+    {
+      description:
+        "Extract structured data from repeating elements on the current page. " +
+        "Perfect for scraping listings, search results, tables, feeds, etc. " +
+        "Provide a CSS selector for the repeating container and field definitions " +
+        "to extract from each container. Fields use 'selector' for text content " +
+        "or 'selector@attr' for an attribute (e.g. 'a@href' for link URL, 'img@src' for image). " +
+        "Use empty string '' as selector to target the container itself. " +
+        "Example: containerSelector='.listing', fields={title: 'h2', price: '.price', link: 'a@href'}",
+      inputSchema: {
+        containerSelector: z.string().describe(
+          "CSS selector matching each repeating item (e.g. '.search-result', 'tr.listing', '[data-testid=\"property-card\"]')"
+        ),
+        fields: z.record(z.string(), z.string()).describe(
+          "Map of field names to selectors. Use 'selector' for text, 'selector@attr' for attribute. " +
+          "Examples: {title: 'h2', price: '.price', url: 'a@href', image: 'img@src'}"
+        ),
+        limit: z.coerce.number().optional().describe("Max items to extract (default: all)"),
+      },
+    },
+    async ({ containerSelector, fields, limit }) => {
+      try {
+        const fieldsJson = JSON.stringify(fields);
+        const result = await callPBI("ExtractData", containerSelector, fieldsJson, limit || 0);
+        const data = typeof result === "string" ? JSON.parse(result) : result;
+
+        if (data.error) {
+          return { content: [{ type: "text", text: `Extract failed: ${data.error}` }] };
+        }
+
+        const lines = [];
+        lines.push(`Extracted ${data.count} items (${data.total} total on page)\n`);
+
+        for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          lines.push(`--- Item ${i + 1} ---`);
+          for (const [key, value] of Object.entries(item)) {
+            lines.push(`  ${key}: ${value}`);
+          }
+        }
+
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `Extract failed: ${err.message}` }] };
+      }
+    }
+  );
+
+  server.registerTool(
+    "browser_collect",
+    {
+      description:
+        "Paginate through multiple pages and collect extracted data. " +
+        "Combines browser_navigate + browser_extract in a loop. " +
+        "Two pagination modes: " +
+        "1) URL pattern: provide urlPattern with {page} placeholder (e.g. 'https://site.com/search?page={page}') " +
+        "2) Next button: provide nextSelector to click a 'next page' element after each extraction. " +
+        "Returns all collected items as a single JSON array. " +
+        "Includes a configurable delay between pages to avoid rate limiting.",
+      inputSchema: {
+        containerSelector: z.string().describe("CSS selector for repeating items (same as browser_extract)"),
+        fields: z.record(z.string(), z.string()).describe("Field extraction map (same as browser_extract)"),
+        urlPattern: z.string().optional().describe(
+          "URL with {page} placeholder for page number, e.g. 'https://funda.nl/zoeken/koop?page={page}'"
+        ),
+        startPage: z.coerce.number().optional().describe("Starting page number (default: 1)"),
+        endPage: z.coerce.number().optional().describe("Ending page number (default: 5)"),
+        nextSelector: z.string().optional().describe(
+          "CSS selector for 'next page' button/link (alternative to urlPattern)"
+        ),
+        maxPages: z.coerce.number().optional().describe("Max pages to collect (default: 5, max: 50)"),
+        delayMs: z.coerce.number().optional().describe("Delay between pages in ms (default: 2000)"),
+      },
+    },
+    async ({ containerSelector, fields, urlPattern, startPage, endPage, nextSelector, maxPages, delayMs }) => {
+      try {
+        const delay = Math.max(delayMs || 2000, 500);
+        const fieldsJson = JSON.stringify(fields);
+        const allItems = [];
+        let pages = 0;
+        const maxP = Math.min(maxPages || 5, 50);
+        const start = startPage || 1;
+        const end = endPage || (start + maxP - 1);
+
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+        if (urlPattern) {
+          // URL pattern pagination
+          for (let page = start; page <= end && pages < maxP; page++) {
+            const url = urlPattern.replace("{page}", page);
+            try {
+              await callPBI("Navigate", url);
+              await sleep(delay);
+
+              const result = await callPBI("ExtractData", containerSelector, fieldsJson, 0);
+              const data = typeof result === "string" ? JSON.parse(result) : result;
+
+              if (data.error) {
+                allItems.push({ _page: page, _error: data.error });
+              } else if (data.items && data.items.length > 0) {
+                for (const item of data.items) {
+                  item._page = page;
+                  allItems.push(item);
+                }
+              } else {
+                // No items found — likely past last page
+                break;
+              }
+            } catch (err) {
+              allItems.push({ _page: page, _error: err.message });
+            }
+            pages++;
+          }
+        } else if (nextSelector) {
+          // Click-based pagination (start from current page)
+          for (let i = 0; i < maxP; i++) {
+            try {
+              const result = await callPBI("ExtractData", containerSelector, fieldsJson, 0);
+              const data = typeof result === "string" ? JSON.parse(result) : result;
+
+              if (data.error) {
+                allItems.push({ _page: i + 1, _error: data.error });
+              } else if (data.items && data.items.length > 0) {
+                for (const item of data.items) {
+                  item._page = i + 1;
+                  allItems.push(item);
+                }
+              } else {
+                break;
+              }
+
+              // Click next
+              if (i < maxP - 1) {
+                try {
+                  await callPBI("ClickElement", nextSelector);
+                  await sleep(delay);
+                } catch {
+                  // No next button — end of pagination
+                  break;
+                }
+              }
+            } catch (err) {
+              allItems.push({ _page: i + 1, _error: err.message });
+              break;
+            }
+            pages++;
+          }
+        } else {
+          return {
+            content: [{ type: "text", text: "Provide either urlPattern or nextSelector for pagination." }],
+          };
+        }
+
+        const lines = [];
+        lines.push(`Collected ${allItems.length} items across ${pages} pages\n`);
+
+        for (let i = 0; i < allItems.length; i++) {
+          const item = allItems[i];
+          if (item._error) {
+            lines.push(`--- Page ${item._page} ERROR: ${item._error} ---`);
+            continue;
+          }
+          lines.push(`--- Item ${i + 1} (page ${item._page}) ---`);
+          for (const [key, value] of Object.entries(item)) {
+            if (key === "_page") continue;
+            lines.push(`  ${key}: ${value}`);
+          }
+        }
+
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `Collect failed: ${err.message}` }] };
+      }
+    }
+  );
+
+  server.registerTool(
     "browser_search",
     {
       description:
