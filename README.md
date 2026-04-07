@@ -21,23 +21,23 @@ MCP server for controlling the KDE Plasma desktop through structured text instea
 
 ### Plasma Browser Integration (for browser control)
 
-The browser features require a modified version of the KDE Plasma Browser Integration extension that adds page content reading and DOM interaction. You need to build and install this from source:
+The browser features require a modified version of the KDE Plasma Browser Integration extension that adds page content reading and DOM interaction. It's included as a git submodule.
 
 ```bash
-# Clone plasma-browser-integration (if not already in project dir)
-git clone https://invent.kde.org/niccolobrambilla/plasma-browser-integration.git
+# Clone with submodule
+git clone --recurse-submodules https://github.com/Niek-Kamer/waytrash.git
+cd waytrash
+
+# Or if already cloned without submodules
+git submodule update --init
+
+# Build the native host
 cd plasma-browser-integration
-
-# Check out the version matching your system
-# Run: pacman -Qi plasma-browser-integration | grep Version
-# Then: git checkout v6.5.6  (or whatever matches)
-git checkout v<your-version>
-
-# Build
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
 sudo make install
+cd ../..
 
 # Load the modified extension in your browser
 # 1. Go to brave://extensions (or chrome://extensions)
@@ -132,6 +132,8 @@ qdbus org.kde.plasma.browser_integration /PageContent org.kde.pbi.PageContent.Cl
 | `browser_type` | Type text into an input element |
 | `browser_scroll` | Scroll the page |
 | `browser_back` / `browser_forward` | Browser history navigation |
+| `browser_extract` | Extract structured data from repeating page elements |
+| `browser_collect` | Paginate and collect extracted data across multiple pages |
 | `browser_search` | Search Google/DuckDuckGo and return structured results |
 | `browser_new_tab` / `browser_close_tab` | Tab management |
 | `get_content` | Read content from Konsole, browser, or clipboard |
